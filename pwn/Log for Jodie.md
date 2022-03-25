@@ -1,4 +1,4 @@
-# Log for Jodie (Log4Shell CVE CVE-2021-44228)
+# Log for Jodie (Log4Shell CVE-2021-44228)
 
 Hi there!
 Here is how I've solved the "Log for Jodie" challenge in LNC CTF 2022.
