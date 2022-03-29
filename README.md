@@ -1,6 +1,8 @@
 # lag-and-crash-2022
 Write-ups for Lag and Crash CTF 2022.
 
+Star/watch this repo. 🌟 
+
 
 ![Screenshot_20220328-115412_Firefox Nightly](https://user-images.githubusercontent.com/58442255/160324451-1d7a3c38-d45c-475d-b65a-4f88e92b1a08.jpg)
 
